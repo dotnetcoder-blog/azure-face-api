@@ -1,0 +1,179 @@
+﻿@page "/"
+@using Dnc.Services.FaceDetection
+
+<PageTitle>Home</PageTitle>
+
+<div class="container">
+    <div class="row">
+        <h3 class="my-5">Face services Api : Face Detection</h3>
+        @if (!Loading)
+        {
+            <div class="col-6">
+                @if (Image != null)
+                {
+                    <div>
+                        <img src="@Image">
+                    </div>
+                }
+                else
+                {
+                    <div class="image-empty"></div>
+                }
+            </div>
+            <div class="col-6">
+                @if (boundingFaces == null)
+                {
+                    <div class="error-message">
+                        No faces detected on the image
+                    </div>
+                }
+                @if (boundingFaces != null && boundingFaces.Count() > 0)
+                {
+                    <div class="error-message">
+                        Faces detected in the image : @boundingFaces.Count() (face/faces)
+                    </div>
+                    var x = 1;
+                    @foreach (var face in boundingFaces)
+                    {
+                        <span style="color:#0f8c98">Face (@x)</span>
+                        <table>
+                            <tr>
+                                <td>Face ID:</td>
+                                <td>@face.Id</td>
+                            </tr>
+                            <tr>
+                                <td>Top:</td>
+                                <td>@face.Top</td>
+                            </tr>
+                            <tr>
+                                <td>Left:</td>
+                                <td>@face.Left</td>
+                            </tr>
+                            <tr>
+                                <td>Width:</td>
+                                <td>@face.Width</td>
+                            </tr>
+                            <tr>
+                                <td>Height:</td>
+                                <td>@face.Height</td>
+                            </tr>
+                            <tr>
+                                <td>Nose tip X: </td>
+                                <td>@face.NoseTipX</td>
+                            </tr>
+                            <tr>
+                                <td>Nose tip Y: </td>
+                                <td>@face.NoseTipY</td>
+                            </tr>
+                        </table>
+                        x++;
+                    }
+                }
+            </div>
+        }
+        else
+        {
+            <div class="fa-x3 d-flex justify-content-center align-items-center">
+                <div>
+                    <i class="fas fa-circle-notch fa-spin"></i>
+                    <div>
+                        <span>Loading...</span>
+                    </div>
+                </div>
+
+            </div>
+        }
+    </div>
+    <div class="my-3">
+        <label for="upload">
+            <span style="cursor:pointer;color:#2c52fd;text-decoration:underline;text-transform:uppercase" aria-hidden="true">Upload</span>
+            <InputFile type="file" id="upload" OnChange="@UploadPhoto" style="display:none" />
+        </label>
+    </div>
+</div>
+
+
+
+@code{
+
+    protected string Image {get;set;}
+    protected bool Loading {get;set;}
+
+    protected IEnumerable<BoundingFace> boundingFaces{get;set;}
+    protected BoundingFace BoundingFace { get; set; }
+
+    [Inject]
+    public IAzureFaceDetectionService AzureFaceDetectionService { get; set; }
+
+    public async Task UploadPhoto(InputFileChangeEventArgs e)
+    {
+        Loading = true;
+        var file = e?.File;
+
+        try
+        {
+            if (file != null)
+            {
+                var imageBytes = await ConvertFileToByte(file);
+                boundingFaces = await AzureFaceDetectionService.DetectFacesInBinaryImage(imageBytes);
+
+                var base64String = await ConvertToBase64StringAsync(file);
+                Image = string.Format("data:image/jpeg;base64,{0}", base64String);
+
+            }
+        }catch(Exception ex)
+        {
+            Console.WriteLine(ex.Message);
+        }
+        finally
+        {
+            Loading = false;
+        }
+    }
+
+    private static async Task<byte[]> ConvertFileToByte(IBrowserFile file)
+    {
+        var buffer = new byte[file.Size];
+        using (var stream = file.OpenReadStream())
+        {
+            await stream.ReadAsync(buffer, 0, (int)file.Size);
+        }
+        return buffer;
+    }
+    private async Task<string> ConvertToBase64StringAsync(IBrowserFile file)
+    {
+        using (var memoryStream = new MemoryStream())
+        {
+            await file.OpenReadStream().CopyToAsync(memoryStream);
+            byte[] fileBytes = memoryStream.ToArray();
+            return Convert.ToBase64String(fileBytes);
+        }
+    }
+}
+
+<style>
+    .image-empty {
+        text-align: center;
+        width: 612px;
+        background-color: #eee;
+        height: 408px;
+    }
+
+    .error-message {
+        font-size:1.3rem;
+        color: #b82828;
+    }
+    td{
+        color: #2c52fd;
+        font-size:1rem;
+    }
+    .img {
+        width: 12rem;
+        height: 15rem;
+    }
+
+    .fa-spin {
+        font-size: 5rem !important;
+        color: #b1b1b1 !important;
+    }
+</style> 
